@@ -39,7 +39,9 @@ def Add_playerData_To_TrackingData(row ,playerDf):
     row['nflId_officialPosition'] = nflId_officialPosition
     row['nflId_height']           = nflId_height
     row['nflId_weight']           = nflId_weight
+    
     return row
+
 # Collect a record of the number of players in each position in every play.
 # This will be used later to determine the maxiumum possible number of players
 # for each position, which in turn determines how many features are needed
@@ -98,66 +100,86 @@ def get_pass_results(row , plays_df):
 
 def preProcess() :
     
-    for dirname, _, filenames in os.walk('/kaggle/input'):
-        for filename in filenames:
-            print(os.path.join(dirname, filename))
-            if 'week5' in filename:
-                weeks = os.path.join(dirname, filename)
-            if 'players' in filename:
-                players = os.path.join(dirname, filename)
-            if 'pffScoutingData' in filename:
-                pffScoutingData = os.path.join(dirname, filename)
-            if 'plays' in filename:
-                plays = os.path.join(dirname, filename)
-            
-            
-    from pandarallel import pandarallel as pl
-    pl.initialize(progress_bar=True, verbose=0)
+    # 設定使用環境
+    #environment = 'kaggle'
+    #environment = 'colab'
+    environment = 'client'
     
-    pffScoutingData_df = pd.read_csv(pffScoutingData)
-    pffScoutingData_df.head()
+    df_games = pd.DataFrame()
+    df_pffScouting = pd.DataFrame()
+    df_plays = pd.DataFrame()
+    df_players = pd.DataFrame()
+    df_tracking = pd.DataFrame()
     
-    plays = pd.read_csv(plays)
-    plays.head()
+    if (environment == 'kaggle'):
     
-    player_df = pd.read_csv(players)
-    player_df.head()
+        for dirname, _, filenames in os.walk('/kaggle/input'):
+            for filename in filenames:
+                print(os.path.join(dirname, filename))
+                if 'week5' in filename:
+                    weeks = os.path.join(dirname, filename)
+                if 'players' in filename:
+                    players = os.path.join(dirname, filename)
+                if 'pffScoutingData' in filename:
+                    pffScoutingData = os.path.join(dirname, filename)
+                if 'plays' in filename:
+                    plays = os.path.join(dirname, filename)
+        # You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+        # You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
+        
+        
+        df_pffScouting = pd.read_csv(pffScoutingData)
+        df_plays = pd.read_csv(plays)
+        df_players = pd.read_csv(players)
+        df_tracking =  pd.read_csv(weeks)
+        
+    elif(environment == 'colab') :
+        raise NotImplementedError
     
-    tracking_df =  pd.read_csv(weeks)
-    tracking_df.head()
+    elif(environment == 'client') :
+        path = './data/'
+        
+        df_games = pd.read_csv(path + 'games.csv')
+        df_plays = pd.read_csv(path + 'plays.csv')
+        df_players = pd.read_csv(path +'players.csv')
+        df_pffScouting = pd.read_csv(path +'pffScoutingData.csv')
+             
+        
+        for i in range(1,2,1):
+            buffer = pd.read_csv(path + 'week' + str(i) + '.csv')
+            df_tracking = pd.concat([df_tracking,buffer])
+            df_tracking.append(buffer, ignore_index=True)
+    else:
+        raise NotImplementedError
+        
     
-    gp_df = tracking_df[['gameId', 'playId']].drop_duplicates()
-    gp_df.reset_index(drop=True, inplace=True)
-    gp_df = gp_df[0:1]
-    gp_df
+    if (df_pffScouting.empty | df_plays.empty | df_players.empty | df_tracking.empty):
+        raise Exception("檔案未讀取")
+    
+    df_gp = df_tracking[['gameId', 'playId']].drop_duplicates()
+    df_gp.reset_index(drop=True, inplace=True)
+    df_gp = df_gp[0:1]
     
     #把球員data塞進track data
-    player = tracking_df.parallel_apply(Add_playerData_To_TrackingData , axis=1,playerDf = player_df )
+    player = df_tracking.parallel_apply(Add_playerData_To_TrackingData , axis=1,playerDf = df_players )
     
-    tracking_df = player
+    df_tracking = player
     
     #統計每個position數量
-    pos_counts = gp_df.parallel_apply(get_position_counts, axis=1 , trackingDf = tracking_df)
+    pos_counts = df_gp.parallel_apply(get_position_counts, axis=1 , trackingDf = df_tracking)
     pos_counts_max = pd.concat([df for df in pos_counts]).max().astype(int)
     del pos_counts  # Mark temp object for deletion to free memory
     pos_counts_max.head()
     
-    pos_counts_max.keys()
-    
-    filter = (tracking_df['gameId'] == 2021100700) &(tracking_df['playId'] == 95)\
-         &(tracking_df['frameId'] == 1) & (tracking_df['nflId_officialPosition'] == 'T')
+    filter = (df_tracking['gameId'] == 2021100700) &(df_tracking['playId'] == 95)\
+         &(df_tracking['frameId'] == 1) & (df_tracking['nflId_officialPosition'] == 'T')
 
-    tracking_df[filter]
+    df_tracking[filter]
     
-    # These are the column names to use as feature data.
-    feature_label_df = gp_df.copy()
-    feature_label_df['labels'] = feature_label_df.parallel_apply(get_pass_results, axis=1 , plays_df=plays)
+    feature_label_df = df_gp.copy()
+    feature_label_df['labels'] = feature_label_df.parallel_apply(get_pass_results, axis=1 , plays_df = df_plays)
     feature_cols = ['nflId','x', 'y', 's', 'a', 'dis', 'o', 'dir','nflId_weight']
     all_positions = sorted(pos_counts_max.keys())
-    feature_label_df['features']= gp_df.parallel_apply(format_features, axis=1, args=[ tracking_df,all_positions,feature_cols])
+    feature_label_df['features']= df_gp.parallel_apply(format_features, axis=1, args=[ df_tracking,all_positions,feature_cols])
     
-    feature_label_df
-    
-    
-    
-    
+    return feature_label_df
