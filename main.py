@@ -9,13 +9,19 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+from torch import optim
 from traceingAnimate import animate_player_movement
 from PreProcess import preProcess
+from model import NFL_LSTM_classifier
+from tqdm import trange
+
+import torch
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def main():
     
-    path = '../data/'
+    path = './data/'
 
 # =============================================================================
 #     df_games = pd.read_csv(path + 'games.csv')
@@ -44,12 +50,52 @@ def main():
 #     team_visit = game['visitorTeamAbbr']
 # =============================================================================
     
-    df_preProcess = preProcess()
-    df_preProcess.head()
-    #video = animate_player_movement(2,65,2021091600)
+    #df_preProcess = preProcess()
+    #df_preProcess.head()
     
-    #video.save(path + 'video.mp4')
+    
+    # model parameter 
+    hidden_size = 512 # 預設512，可調整
+    num_layers = 2 # 預設2，可調整
+    bidirectional = True
+    intput_size = 23 * 9 # (22個選手+球) * 9個feature
+    intput_data_length = 64  # Frame size
+    output_size = 4 # 4種傳球結果 C、I、S、IN
+    batch_size = 32 # 預設32，可調整
+    
+    model = NFL_LSTM_classifier(hidden_size,num_layers,bidirectional,intput_size,intput_data_length,output_size,batch_size).to(device)
+    
+    optimizer = optim.Adam(model.parameters(), 1e-3)
+
+    epoch_size = 100
+    epoch_pbar = trange(epoch_size, desc="Epoch")
+    
+    for epoch in epoch_pbar:
+        # TODO: Training loop - iterate over train dataloader and update model weights
+        train_loop()
+        # TODO: Evaluation loop - calculate accuracy and save model weights
+        vaild_loop()
+        pass
 
     
+    ckpt_path = "./checkpoint/checkpoint.pt"
+    torch.save(model.state_dict(), str(ckpt_path))
+    
+    # video create
+    gameID = 2021091600
+    playID = 65
+    weekNum = 2
+    video = animate_player_movement(weekNum,playID,gameID)
+    video.save(path + 'video.mp4')
+
+
+def train_loop():
+    raise NotImplementedError
+
+def vaild_loop():
+    
+    raise NotImplementedError
+
+
 if __name__ == "__main__":
     main()

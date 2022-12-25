@@ -131,7 +131,7 @@ def calculate_dx_dy_arrow(x, y, angle, speed, multiplier):
     
         
 def animate_player_movement(weekNumber, playId, gameId):
-    path = '../data/'
+    path = './data/'
     weekData = pd.read_csv(path + 'week' + str(weekNumber) + '.csv')
     playData = pd.read_csv(path + 'plays.csv')
     gameData = pd.read_csv(path + 'games.csv')
