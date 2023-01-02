@@ -71,8 +71,8 @@ class NFL_LSTM_classifier(torch.nn.Module):
 
         batchSize = batch.shape[0]
 
-        h0 = torch.randn(self.num_layers * (2 if self.bidirectional else 1), batchSize, self.hidden_size).requires_grad_().to(device)
-        c0 = torch.randn(self.num_layers * (2 if self.bidirectional else 1), batchSize, self.hidden_size).requires_grad_().to(device)
+        h0 = torch.randn(self.num_layers * (2 if self.bidirectional else 1), batchSize,self.hidden_size).requires_grad_().to(device)
+        c0 = torch.randn(self.num_layers * (2 if self.bidirectional else 1), batchSize,self.hidden_size).requires_grad_().to(device)
 
 
         L, (hn, Cn) = self.lstm(batch, (h0, c0))
